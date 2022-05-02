@@ -1,0 +1,360 @@
+---
+title: "Amenities Cleaning"
+output: html_document
+---
+```{r}
+library(sf)
+library(dplyr)
+library(tidyverse)
+library(xml2)
+library(rvest)
+library(curl)
+library(ggmap)
+library(magrittr)
+library(XML)
+library(curl)
+library(stringr)
+library(jsonlite)
+```
+
+
+##1. MRT Data
+
+The MRT data was taken from Data.Gov.Sg and also Kaggle. These files were then merged to get the address, station name, station and coordinates of the MRT stations. 
+
+```{r station urls}
+all_stations <- read.csv("train-station-chinese-names.csv")
+
+#remove ten mile junction station and teck lee (closed)
+station_data <- all_stations[which(! all_stations$stn_code %in% c('BP14','PW2')),]
+rownames(station_data) <- NULL
+
+station_name_url <- paste0(str_replace_all(station_data$mrt_station_english,' ','-'),'-station')
+all_station_url <- paste0('https://landtransportguru.net/',station_name_url)
+```
+
+### Create Function to scrap address
+```{r station_info}
+station_info <- function(station_url){
+  page <- read_html(station_url)
+  #closeAllConnections()
+  
+  con <- html_nodes(page,"#summarybox tr:nth-child(3) td+ td")
+  con2 <- html_nodes(page,".entry-content div tr:nth-child(3) td+ td")
+  con <- html_text(con)
+  con2 <- html_text(con2)
+  address <- ifelse(length(con)==0,con2,con)
+  address <- str_remove_all(address,'\n')
+  address <- str_remove_all(address,'\\s\\(.*')
+  
+  return (address)
+  #df1 <- data.frame(address)
+  #return (df1)
+}
+```
+
+### Get MRT/LRT address 
+
+```{r get all mrt addresses}
+station_data2 <- station_data
+x=1
+for (i in all_station_url) {
+  station_data2$address[x] <- station_info(i)
+  x = x+1
+  Sys.sleep(0.1)
+}
+
+#save to csv file
+write.csv(station_data2,"station_address.csv", row.names = TRUE)
+```
+
+### Lat and lon coordinates were added and we checked for errors 
+
+```{r match lat and lon to mrt}
+lat_lon <- read.csv("mrt_lrt_data.csv")
+station_data_merge <- merge(x=station_data2,y=lat_lon,by.x="mrt_station_english",by.y = "station_name",all.x = TRUE)
+
+#check for lat/lon error
+con <- station_data_merge$lat[duplicated(station_data_merge$lat)]
+dat <- station_data_merge[which(station_data_merge$lat %in% con),]
+dat[order(dat$lat),]
+
+#Admiralty address is wrong, change to correct lat and lon
+station_data_merge$lat[1] <- 1.440619
+station_data_merge$lng[1] <- 103.800967
+
+head(station_data_merge)
+write.csv(station_data_merge,"station_data.csv", row.names = TRUE)
+```
+
+
+## 2. Malls
+
+The malls data was scrapped from www.malls.com to get all the shopping malls in Singapore listed in that website. Using geocode, we then get the malls latitude and longitude based on the addresses. 
+
+```{r get links}
+url <- "https://www.malls.com/malls/?countries=377&space=&m_type=1"
+page <- read_html(url)
+#closeAllConnections()
+
+alpha_linktext <- html_nodes(page,".abc a") 
+base <- "https://www.malls.com"
+all_details_url <- paste0(base,html_attr(alpha_linktext,"href"))
+
+get_mall_detail <- function(url){
+  page <- read_html(url)
+  #closeAllConnections()
+  
+  malls <- html_nodes(page, ".text-block a")
+  malls <- html_text(malls)
+  
+  address <- html_nodes(page, "#content-wrapper li:nth-child(1)")
+  address <- html_text(address)
+  address <- str_remove(address,"ADDRESS: ")
+  
+  df1 <- data.frame(malls, address)
+  return (df1)
+}
+```
+
+### Get mall details
+```{r get malls details}
+malls_df <- data.frame()
+for (i in all_details_url){
+  malls_df <- rbind(malls_df,get_mall_detail(i))
+  Sys.sleep(0.1)
+}
+
+malls_df$malls[79] <- "313@Somerset"
+malls_df$malls[70] <- "Velocity@Novena Square"
+malls_df$malls[45] <- "Paragon"
+
+malls_df$address[8] <- "1 Woodlands Square, Singapore 738099"
+malls_df$address[9] <- "2 Tampines Central 5, #01-32 Century Square, Singapore 529509"
+malls_df$address[12] <- "180 Kitchener Rd, Singapore 208539"
+malls_df$address[13] <- "1 Raffles Link, Singapore 039393"
+malls_df$address[30] <- "1 Jurong West Central 2, Singapore 648886"
+malls_df$address[34] <- "2 Bayfront Ave Marina Bay Sands, Singapore 018972"
+malls_df$address[35] <- "6 Raffles Boulevard, Singapore 039594"
+malls_df$address[36] <- "9 Raffles Boulevard, Singapore 039596"
+malls_df$address[37] <- "45 Syed Alwi Road, Singapore 207704"
+malls_df$address[40] <- "930 Yishun Ave 2, Singapore 769098"
+malls_df$address[42] <- "181 Orchard Road, Singapore 238896"
+malls_df$address[43] <- "277 Orchard Rd, Singapore 238858"
+
+malls_df$address[44] <- "390 Orchard Road, Singapore 238871"
+malls_df$address[48] <- "1 Selegie Rd, Singapore 188306"
+malls_df$address[55] <- "30 Sembawang Dr, Singapore 757713"
+malls_df$address[56] <- "3 Temasek Blvd, Singapore 038983"
+malls_df$address[57] <- "10 Tampines Central 1, Singapore 529536" 
+malls_df$address[58] <- "4 Tampines Central 5, Singapore 529510"
+malls_df$address[67] <- "111 Somerset Rd, Singapore 238164"
+malls_df$address[69] <- "491 River Valley Road, Singapore 248371"
+malls_df$address[70] <- "238 Thomson Road, Singapore 307683"
+
+malls_df$address[59] <- "163 Tanglin Road, Singapore 247933"
+malls_df$address[60] <- "6 Eu Tong Sen Street, Singapore 059817"
+malls_df$address[63] <- "33 Sengkang West Avenue, Singapore 797653"
+malls_df$address[38] <- "23 Serangoon Central, Singapore 556083"
+
+malls_df$address[72] <- "83 Punggol Central, Singapore 828761"
+malls_df$address[73] <- "154 West Coast Rd, Singapore 127371"
+malls_df$address[76] <- "1 Pasir Ris Central Street 3, Singapore 518457"
+malls_df$address[78] <- "112 East Coast Rd (Joo Chiat Rd), Singapore 428802"
+
+write.csv(malls_df,"malls_data1.csv", row.names = TRUE)
+```
+
+### Get latitude and Longtitude for malls
+```{r get lat/lon for malls}
+malls_df2 <- read.csv("malls_data1.csv")
+
+for (i in 1:length(malls_df2$address)){
+  result <- geocode(malls_df2$address[i], output = "latlona", source="google")
+  malls_df2$lat[i] <- as.numeric(result[2])
+  malls_df2$lon[i] <- as.numeric(result[1])
+}
+
+#get lat and lon for century square
+malls_df2$lat[9] <- 1.352403
+malls_df2$lon[9] <- 103.943857
+
+head(malls_df2)
+
+write.csv(malls_df2,"malls_data2.csv", row.names = TRUE)
+```
+
+
+## 3. Nature parks
+
+The raw data of the names and location of the nature parks are gotten from https://data.gov.sg/dataset/parks, as a kml file. Then, we converted the kml file into a dataframe and extracted the necessary data. Some data cleaning was done as the original data had unclean formats when converted into a dataframe.
+
+```{r}
+parks <- st_read("parks-kml.kml")
+parks_coord <- parks$geometry
+parks_desc <- parks$Description
+parks_desc <- data.frame(parks_desc)
+parks_coord <- data.frame(parks_coord)
+
+extract_name <- function(chunk) {
+  name <- gsub(".*<th>NAME", "", chunk)
+  name <- gsub("</td>.*", "", name)
+  name <- gsub(".*<td>", "", name)
+  return(name)
+}
+
+parks_df <- data.frame(sapply(parks_desc, extract_name))
+parks_df <- cbind(parks_df, parks_coord)
+names(parks_df) <- c("name", "coord")
+parks_df <- separate(parks_df, 2, c("longitude", "latitude", "zero"), sep=",")
+parks_df <- parks_df[-4] #remove column with zeros
+parks_df$latitude <- substr(parks_df$latitude, 3, nchar(parks_df$latitude)) #get the latitude/longitude columns cleaned
+
+write.csv(parks_df, "Parks.csv", row.names=TRUE)
+```
+
+
+## 4. Clinics
+
+As there are many CHAS clinics around Singapore and since these clinics can be easily accessed, it is highly likely that most Singaporeans would visit these clinics when they fall sick. The CHAS clinics kml was taken from Data.gov.sg [https://data.gov.sg/dataset/chas-clinics] and we scraped data from the kml file. There was no data cleaning done for this file as all information was already presented accurately.
+```{r}
+link <- "chas-clinics-kml.kml"
+
+chas.clinics <- st_read(link)
+clinics_desc <- chas.clinics$Description
+
+extract_name <- function(chunk) {
+  name <- gsub(".*<th>HCI_NAME", "", chunk)
+  name <- gsub("</td>.*", "", name)
+  name <- gsub(".*<td>", "", name)
+  return(name)
+}
+
+clinics_df <- data.frame(sapply(clinics_desc, extract_name))
+chas.coord <- st_coordinates(chas.clinics) %>% as.data.frame()
+chas.coord <- chas.coord[,-3]
+
+chas.coord <- cbind(chas.coord, clinics_df)
+
+chas.coord <- chas.coord %>% rename(lon=X, lat=Y, name= sapply.clinics_desc..extract_name.)
+
+write.csv(chas.coord,"chas.csv")
+```
+
+## 5. Schools
+
+Next, we scrapped data for schools, using the function geocode. However as some of the latitude and longitude data scraped from Google maps is wrong, we had to do some data cleaning and changed those data manually.
+
+```{r}
+Schools <- read.csv("general-information-of-schools.csv")
+Schools_lat_lon <- geocode(Schools$address)
+head(Schools_lat_lon)
+Schools <- cbind(Schools_lat_lon, Schools$school_name)
+head(Schools)
+```
+
+
+```{r}
+Schools$lon[151] <- 103.7648
+Schools$lat[151] <- 1.301510
+
+Schools$lon[287] <- 103.7581
+Schools$lat[287] <- 1.3097
+
+Schools$lon[50] <- 103.8742
+Schools$lat[50] <- 1.3343
+
+Schools$lon[247] <- 103.7743
+Schools$lat[247] <- 1.3137
+
+Schools$lon[126] <- 103.7839
+Schools$lat[126] <- 1.317730
+
+Schools$lon[231] <- 103.8078
+Schools$lat[231] <- 1.295890
+
+Schools$lon[70] <- 103.8913
+Schools$lat[70] <- 1.305490
+
+Schools$lon[188] <- 103.7733
+Schools$lat[188] <- 1.310100
+
+Schools$lon[275] <- 103.8286
+Schools$lat[275] <- 1.3229
+
+Schools$lon[113] <- 103.49258
+Schools$lat[113] <- 1.17218
+
+Schools$lon[18] <- 103.8348
+Schools$lat[18] <- 1.3179
+
+Schools$lon[15] <- 103.8348
+Schools$lat[15] <- 1.3185
+
+Schools$lon[181] <- 103.8024
+Schools$lat[181] <- 1.3305
+
+Schools$lon[100] <- 103.476785
+Schools$lat[100] <- 1.180511
+
+Schools$lon[276] <- 103.4938
+Schools$lat[276] <- 1.1925
+
+Schools$lon[260] <- 103.7891
+Schools$lat[260] <- 1.4267
+
+Schools$lon[163] <- 103.8783
+Schools$lat[163] <- 1.3417
+
+Schools$lon[59] <- 103.7676
+Schools$lat[59] <- 1.36676
+
+Schools$lon[51] <- 103.8754
+Schools$lat[51] <- 1.335870
+
+Schools$lon[290] <- 103.8976
+Schools$lat[290] <- 1.308566
+
+Schools$lon[99] <- 103.476785
+Schools$lat[99] <- 1.180511
+
+Schools$lon[16] <- 103.7807
+Schools$lat[16] <- 1.30287
+
+Schools$lon[235] <- 103.8062
+Schools$lat[235] <- 1.33031
+
+Schools$lon[306] <- 103.8220
+Schools$lat[306] <- 1.4526
+
+Schools$lon[232] <- 103.8132
+Schools$lat[232] <- 1.29401
+
+Schools$lon[183] <- 103.8077
+Schools$lat[183] <- 1.3213
+
+Schools$lon[56] <- 103.9173
+Schools$lat[56] <- 1.30686
+
+Schools$lon[204] <- 103.8371
+Schools$lat[204] <- 1.2867
+
+Schools$lon[281] <- 103.8572
+Schools$lat[281] <- 1.30412
+
+write.csv(Schools,"schools.csv")
+```
+
+
+## 6. HDB Data 
+
+As the data from https://data.gov.sg/dataset/price-range-of-hdb-flats-offered only has up to year 2018, we used data from https://www.hdb.gov.sg/cs/infoweb/residential/buying-a-flat/new/sales-launches/bto-sbf-open-booking as well
+```{r}
+
+URL <- 'https://data.gov.sg/api/action/datastore_search?resource_id=d23b9636-5812-4b33-951e-b209de710dd5&limit=1000'
+data <- fromJSON(URL)
+
+data <- data[[3]] 
+head(data)
+```
+
