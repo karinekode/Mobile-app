@@ -1,0 +1,387 @@
+---
+title: "Data cleaning"
+date: "10/30/2020"
+output: html_document
+---
+```{r}
+library(geosphere)
+library(sf)
+library(dplyr)
+library(tidyverse)
+library(xml2)
+library(rvest)
+library(curl)
+library(ggmap)
+library(magrittr)
+library(XML)
+library(curl)
+library(stringr)
+library(jsonlite)
+
+MRT <- read.csv("station_data.csv")
+bto <- read.csv("HDB BTO 2020.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(MRT$name)){
+    dist <- distm(x = matrix(data = c(MRT$lon, MRT$lat), ncol = 2), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_MRT <- unlist(dist_list_full)
+bto$min_MRT_dist <- min_dist_MRT/1000
+```
+
+```{r}
+Malls <- read.csv("malls_data2.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(Malls$name)){
+    dist <- distm(x = matrix(data = c(Malls$lon, Malls$lat), ncol = 2), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_malls <- unlist(dist_list_full)
+bto$min_malls_dist <- min_dist_malls/1000
+```
+
+```{r}
+Parks <- read.csv("Parks.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(Parks$name)){
+    dist <- distm(x = c(Parks$lon[i], Parks$lat[i]), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_parks <- unlist(dist_list_full)
+bto$min_parks_dist <- min_dist_parks/1000
+```
+
+```{r}
+Clinics <- read.csv("chas.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(Clinics$name)){
+    dist <- distm(x = c(Clinics$lon[i], Clinics$lat[i]), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_clinics <- unlist(dist_list_full)
+bto$min_clinics_dist <- min_dist_clinics/1000
+```
+
+```{r}
+Schools <- read.csv("schools.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(Schools$X)){
+    dist <- distm(x = c(Schools$lon[i],Schools$lat[i]), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_schools <- unlist(dist_list_full)
+bto$min_schools_dist <- min_dist_schools/1000
+write.csv(bto,"bto.csv")
+```
+
+```{r}
+MRT <- read.csv("station_data.csv", encoding = "UTF-8")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(MRT$name)){
+    dist <- distm(x = matrix(data = c(MRT$lon, MRT$lat), ncol = 2), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_MRT <- unlist(dist_list_full)
+bto$min_MRT_dist <- min_dist_MRT/1000
+
+Malls <- read.csv("malls_data2_clean.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(Malls$name)){
+    dist <- distm(x = matrix(data = c(Malls$lon, Malls$lat), ncol = 2), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_malls <- unlist(dist_list_full)
+bto$min_malls_dist <- min_dist_malls/1000
+
+Parks <- read.csv("Parks.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(Parks$name)){
+    dist <- distm(x = c(Parks$lon[i], Parks$lat[i]), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_parks <- unlist(dist_list_full)
+bto$min_parks_dist <- min_dist_parks/1000
+
+Clinics <- read.csv("chas.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(Clinics$name)){
+    dist <- distm(x = c(Clinics$lon[i], Clinics$lat[i]), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_clinics <- unlist(dist_list_full)
+bto$min_clinics_dist <- min_dist_clinics/1000
+
+Schools <- read.csv("schools.csv")
+
+dist_list_full <- list()
+for (x in 1:length(bto$Location)){
+  dist_list <- list()
+  for (i in 1:length(Schools$X)){
+    dist <- distm(x = c(Schools$lon[i],Schools$lat[i]), 
+                  y = c(bto$Long[x], bto$Lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_schools <- unlist(dist_list_full)
+bto$min_schools_dist <- min_dist_schools/1000
+write.csv(bto,"bto.csv")
+```
+
+
+```{r}
+hdb_resale <- read.csv("srx hdb.csv")
+MRT <- read.csv("station_data_clean.csv")
+dist_list_full <- list()
+for (x in 1:length(hdb_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(MRT$name)){
+    dist <- distm(x = matrix(data = c(MRT$lon, MRT$lat), ncol = 2), 
+                  y = c(hdb_resale$long[x], hdb_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_MRT <- unlist(dist_list_full)
+hdb_resale$min_MRT_dist <- min_dist_MRT/1000
+
+Malls <- read.csv("malls_data2_clean.csv")
+
+dist_list_full <- list()
+for (x in 1:length(hdb_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(Malls$name)){
+    dist <- distm(x = matrix(data = c(Malls$lon, Malls$lat), ncol = 2), 
+                  y = c(hdb_resale$long[x], hdb_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_malls <- unlist(dist_list_full)
+hdb_resale$min_malls_dist <- min_dist_malls/1000
+
+Parks <- read.csv("Parks.csv")
+
+dist_list_full <- list()
+for (x in 1:length(hdb_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(Parks$name)){
+    dist <- distm(x = c(Parks$lon[i], Parks$lat[i]), 
+                  y = c(hdb_resale$long[x], hdb_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_parks <- unlist(dist_list_full)
+hdb_resale$min_parks_dist <- min_dist_parks/1000
+
+Clinics <- read.csv("chas.csv")
+
+dist_list_full <- list()
+for (x in 1:length(hdb_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(Clinics$name)){
+    dist <- distm(x = c(Clinics$lon[i], Clinics$lat[i]), 
+                  y = c(hdb_resale$long[x], hdb_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_clinics <- unlist(dist_list_full)
+hdb_resale$min_clinics_dist <- min_dist_clinics/1000
+
+Schools <- read.csv("schools.csv")
+
+dist_list_full <- list()
+for (x in 1:length(hdb_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(Schools$X)){
+    dist <- distm(x = c(Schools$lon[i],Schools$lat[i]), 
+                  y = c(hdb_resale$long[x], hdb_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_schools <- unlist(dist_list_full)
+hdb_resale$min_schools_dist <- min_dist_schools/1000
+write.csv(hdb_resale,"hdb_resale.csv")
+```
+
+`
+
+```{r}
+condo_resale <- read.csv("srx condo.csv")
+MRT <- read.csv("station_data.csv")
+Malls <- read.csv("malls_data2.csv")
+Parks <- read.csv("Parks.csv")
+Clinics <- read.csv("chas.csv")
+Schools <- read.csv("schools.csv")
+
+dist_list_full <- list()
+for (x in 1:length(condo_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(MRT$name)){
+    dist <- distm(x = matrix(data = c(MRT$lon, MRT$lat), ncol = 2), 
+                  y = c(condo_resale$long[x], condo_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_MRT <- unlist(dist_list_full)
+condo_resale$min_MRT_dist <- min_dist_MRT/1000
+
+
+dist_list_full <- list()
+for (x in 1:length(condo_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(Malls$name)){
+    dist <- distm(x = matrix(data = c(Malls$lon, Malls$lat), ncol = 2), 
+                  y = c(condo_resale$long[x], condo_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_malls <- unlist(dist_list_full)
+condo_resale$min_malls_dist <- min_dist_malls/1000
+
+Parks <- read.csv("Parks.csv")
+
+dist_list_full <- list()
+for (x in 1:length(condo_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(Parks$name)){
+    dist <- distm(x = c(Parks$lon[i], Parks$lat[i]), 
+                  y = c(condo_resale$long[x], condo_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_parks <- unlist(dist_list_full)
+condo_resale$min_parks_dist <- min_dist_parks/1000
+
+Clinics <- read.csv("chas.csv")
+
+dist_list_full <- list()
+for (x in 1:length(condo_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(Clinics$name)){
+    dist <- distm(x = c(Clinics$lon[i], Clinics$lat[i]), 
+                  y = c(condo_resale$long[x], condo_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_clinics <- unlist(dist_list_full)
+condo_resale$min_clinics_dist <- min_dist_clinics/1000
+
+Schools <- read.csv("schools.csv")
+
+dist_list_full <- list()
+for (x in 1:length(condo_resale$X)){
+  dist_list <- list()
+  for (i in 1:length(Schools$X)){
+    dist <- distm(x = c(Schools$lon[i],Schools$lat[i]), 
+                  y = c(condo_resale$long[x], condo_resale$lat[x]), 
+                  fun = distHaversine) 
+    dist_list <- append(dist_list,dist) }
+  min_dist <- min(unlist(dist_list))
+  dist_list_full <- append(dist_list_full,min_dist)
+}
+
+min_dist_schools <- unlist(dist_list_full)
+condo_resale$min_schools_dist <- min_dist_schools/1000
+write.csv(condo_resale,"condo_resale.csv")
+```
+
