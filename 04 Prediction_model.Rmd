@@ -1,6 +1,6 @@
 ---
 title: "Prediction_model"
-author: "Tan Tu Jin"
+author: "SA2 - Group 3"
 date: "11/7/2020"
 output: html_document
 ---
