@@ -1,6 +1,6 @@
 ---
 title: "Data cleaning"
-author: "Regine"
+author: "SA2 - Group 3"
 date: "10/30/2020"
 output: html_document
 ---
