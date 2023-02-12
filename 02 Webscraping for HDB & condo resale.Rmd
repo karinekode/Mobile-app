@@ -1,0 +1,178 @@
+---
+title: "Crawl SRX"
+date: "10/26/2020"
+output: html_document
+---
+
+## Code to crawl individual listing
+```{r eval=FALSE}
+library(stringr)
+library(rvest)
+library(jsonlite)
+
+CrawlPropertyDetails <- function(url)
+{
+  url <- url(url,"rb")
+  page<-read_html(url)
+  close(url)
+  
+  #Obtain details about key features of the house. This method is used as the position and number of key features changes based on the listing
+  values_title <- html_nodes(page, ".listing-about-main-key") %>% html_text()
+  values <- html_nodes(page, ".listing-about-main-value") %>% html_text()
+  
+  names(values) <- values_title
+  
+  #Obtain Postal Code from the address
+  postal <- str_sub(values["Address"], -7, -2)
+  
+  #Ensure that postal code contains 6 digits. Without padding, the first digit would be removed if its zero and postal code would only be 5 digits
+  postal <- str_pad(postal, 6, side = "left", pad = "0")
+  
+  #Check if postal code is valid. Some addresses do not contain postal code. If addresses are valid, convert the postal code to longitude and latitude by using the API from OneMap.
+  if (suppressWarnings(is.na(as.numeric(postal)))){
+    long <- NA
+    lat <- NA
+  } else {
+    long <- fromJSON(paste0("https://developers.onemap.sg/commonapi/search?searchVal=", postal, "&returnGeom=Y&getAddrDetails=N&pageNum=1"))$results$LONGITUDE[1]
+    lat <- fromJSON(paste0("https://developers.onemap.sg/commonapi/search?searchVal=", postal, "&returnGeom=Y&getAddrDetails=N&pageNum=1"))$results$LATITUDE[1]
+  }
+
+  values <- c(values, long = long, lat = lat)
+
+  #Obtain details about facilities
+  f <- html_text(html_nodes(page,".listing-about-facility-span"))
+  f <- paste(f, collapse = ", ")
+  names(f) <- "Facilities"
+  
+  #In SRX, this part is dynamic. It may contain different number of categories, depending on the number of public facilities around the area.
+  area <- page %>% html_nodes(".listing-amenities-wrapper")
+  area_sub <- html_children(area)
+  
+  #Check if page contains information about public amenities. There are some listings without any nearby public amenities
+  if (length(area_sub) == 0){
+    final_result <- c(values, f)
+    return(final_result)}
+  
+  area.vec <- c()
+  curr_title <- ""
+  curr_value <- ""
+  for(i in 1:length(area_sub))
+  {
+    if(str_detect(html_attr(area_sub[[i]],"class"), "listing-amenities-category"))
+    {
+      if(curr_value != "")
+      {
+        #this is to remove the additional ; at the end
+        curr_value <- substr(curr_value,1,nchar(curr_value)-1)
+        names(curr_value) <- curr_title
+        new.elm <- curr_value
+        area.vec <- c(area.vec,new.elm)
+      }
+      
+      curr_title <- html_text(area_sub[[i]])
+      curr_value <- ""
+    }
+    else
+    {
+      curr_value <- paste0(curr_value,html_text(area_sub[[i]]),";")
+    }
+  }
+  if(curr_value != "")
+  {
+    #this is to remove the additional ; at the end
+    curr_value <- substr(curr_value,1,nchar(curr_value)-1)
+    names(curr_value) <- curr_title
+    new.elm <- curr_value
+    area.vec <- c(area.vec,new.elm)
+  }
+  
+  #Finally, remove the space inbetween text
+  names <- names(area.vec)
+  area.vec <- gsub("\\s+", " ", area.vec)
+  names(area.vec) <- names
+  
+  #Combine the key details, facilities and public amenities
+  final_result <- c(values, f, area.vec)
+  final_result <- trimws(final_result)
+  return(final_result)
+}
+```
+
+## Code to crawl all the pages
+```{r eval=FALSE}
+df_1 <- data.frame() #To store HDB resale data
+df_2 <- data.frame() #To store condo resale data
+type <- "HDB" #Either HDB or Condo
+
+CrawlPage <- function(n){
+
+  if(type == "HDB"){
+    url <- paste0("https://www.srx.com.sg/search/sale/hdb?page=",n)} else if (type == "Condo"){
+    url <- paste0("https://www.srx.com.sg/search/sale/condo?page=", n)}
+
+  url <- read_html(url)
+  links <- html_nodes(url, ".listingDetailsDivLink") %>% html_attr('href')
+  df <- data.frame()
+
+  for (link in links){
+    url_individual <- paste0("https://www.srx.com.sg", link)
+    details <- CrawlPropertyDetails(url_individual)
+    details_df <- data.frame(t(details))
+    df <- bind_rows(df, details_df)
+  }
+  return(df)
+}
+
+Result <- function(n){
+   result = tryCatch(
+               {
+                    return (CrawlPage(n))
+               },
+               warning = function(n) {
+                   print(paste("Warning in crawling the ", n, "th page of SRX", sep = ""))
+               },
+               error = function(n) {
+                 print(paste("Error in crawling the ", n, "th page of SRX", sep = ""))
+                 return("Done")
+               },
+              finally = function(n)
+             {}
+          )
+        return (result)
+}
+
+n<-1L
+
+while(TRUE){
+    property <- Result(n)
+    if (type == "HDB"){
+      df_1 <- bind_rows(df_1, property)
+    } else if (type == "Condo"){
+      df_2 <- bind_rows(df_2, property)
+    }
+
+    if(property == "Done")
+        break
+     
+    
+    n<-n+1
+}
+
+```
+
+#Write the dataframe into csv files to preserve the data
+```{r eval=FALSE}
+write.csv(df_1, "C:\\Users\\Alvin Choo\\Desktop\\srx hdb.csv", row.names = T)
+
+write.csv(df_2, "C:\\Users\\Alvin Choo\\Desktop\\srx condo.csv", row.names = T)
+
+```
+
+## Read the data
+```{r}
+hdb <- read.csv("srx hdb.csv")
+head(hdb)
+
+condo <- read.csv("srx condo.csv")
+head(condo)
+```
