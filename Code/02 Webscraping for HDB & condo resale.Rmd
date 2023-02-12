@@ -1,6 +1,5 @@
 ---
 title: "Crawl SRX"
-author: "SA2 - Group 3"
 date: "10/26/2020"
 output: html_document
 ---
